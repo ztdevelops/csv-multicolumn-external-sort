@@ -1,4 +1,5 @@
 import os
+import time
 import uuid
 import heapq
 
@@ -9,7 +10,20 @@ def generate_tmp_filename(filepath):
 
     return os.path.join("tmp", f"{original_filename}-{id}{ext}")
 
-def merge(file1_name, file2_name, output_name, header):
+def sort_keys(row, sort_params):
+    keys = []
+    for sort_param in sort_params:
+        index = sort_param["index"]
+        order = sort_param["order"]
+        key = row[index]
+        if order == "desc":
+            key = ''.join(chr(255 - ord(c)) for c in key)
+
+        keys.append(key)
+    
+    return tuple(keys)
+
+def merge(file1_name, file2_name, output_name, sort_params, header):
     output = open(output_name, "w")
 
     if header:
@@ -23,7 +37,8 @@ def merge(file1_name, file2_name, output_name, header):
     file1_iter = iter([] if file1 is None else file1)
     file2_iter = iter([] if file2 is None else file2)
 
-    merged = heapq.merge(file1_iter, file2_iter)
+    merged = heapq.merge(file1_iter, file2_iter, key=lambda x: sort_keys(x.strip().split(","), sort_params))
+    
     for line in merged:
         output.write(line)
 
@@ -37,7 +52,7 @@ def merge(file1_name, file2_name, output_name, header):
     
     output.close()
 
-def split_half(file_to_sort, has_header=False, is_root=False, specified_output=None):
+def split_half(file_to_sort, sort_params, has_header=False, is_root=False, specified_output=None):
     file_to_read = open(file_to_sort, "r")
     header = None
     if has_header:
@@ -72,13 +87,18 @@ def split_half(file_to_sort, has_header=False, is_root=False, specified_output=N
     if file2 is not None: file2.close()
 
     if last_idx > 1:
-        split_half(file1_name)
-        split_half(file2_name)
+        split_half(file1_name, sort_params)
+        split_half(file2_name, sort_params)
 
-    merge(file1_name, file2_name, specified_output if is_root else file_to_sort, header)
+    merge(file1_name, file2_name, specified_output if is_root else file_to_sort, sort_params, header)
 
 def sort_large_csv_file(file_to_sort, output_file):
-    split_half(file_to_sort, has_header=True, is_root=True, specified_output=output_file)
+    sort_params = [{"index": 0, "order": "asc"}, {"index": 1, "order": "desc"}]
+    split_half(file_to_sort, sort_params, has_header=True, is_root=True, specified_output=output_file)
 
 if __name__ == "__main__":
-    sort_large_csv_file("src/original.csv", "src/original-sorted.csv")
+    start_time = time.time()
+    sort_large_csv_file("src/MOCK_DATA.csv", "src/MOCK_DATA-sorted.csv")
+    end_time = time.time()
+    elapsed_time = end_time - start_time
+    print(f"Sorting for file with 103680 rows completed in {elapsed_time:.2f} seconds")
